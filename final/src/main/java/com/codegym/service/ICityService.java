@@ -10,12 +10,20 @@ import java.util.Map;
  */
 public interface ICityService {
     /**
-     * Gets a paginated list of city DTOs.
+     * Gets a paginated list of city DTOs using Redis cache when possible.
      * @param offset Starting position
      * @param limit Maximum number of results
      * @return List of CityDTOs
      */
     List<CityDTO> getPaginatedCities(int offset, int limit);
+
+    /**
+     * Gets a paginated list of city DTOs directly from the database, bypassing cache.
+     * @param offset Starting position
+     * @param limit Maximum number of results
+     * @return List of CityDTOs and the time taken in milliseconds
+     */
+    Map.Entry<List<CityDTO>, Long> getPaginatedCitiesNoCache(int offset, int limit);
 
     /**
      * Gets cities within a population range.

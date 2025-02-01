@@ -35,7 +35,7 @@ public class Main {
         checkAndHandlePortsInUse();
         this.sessionFactory = prepareRelationalDb();
         this.redisClient = prepareRedisClient();
-        this.cityService = new CityService(new CityDAO(sessionFactory), sessionFactory);
+        this.cityService = new CityService(new CityDAO(sessionFactory), sessionFactory, redisClient);
     }
 
     private void showMenu() {
@@ -44,11 +44,12 @@ public class Main {
 
         while (!exit) {
             System.out.println("\nCity Data Operations Menu:");
-            System.out.println("1. View Cities (Pagination)");
+            System.out.println("1. View Cities (Pagination) - Utilizes Redis caching for improved performance");
             System.out.println("2. Find Cities by Population Range");
             System.out.println("3. View Cities by Category");
-            System.out.println("4. Exit");
-            System.out.print("Enter your choice (1-4): ");
+            System.out.println("4. Compare Cache vs Database Performance");
+            System.out.println("5. Exit");
+            System.out.print("Enter your choice (1-5): ");
 
             int choice = scanner.nextInt();
             scanner.nextLine(); // consume newline
@@ -64,6 +65,9 @@ public class Main {
                     handleCityCategories();
                     break;
                 case 4:
+                    handlePerformanceComparison(scanner);
+                    break;
+                case 5:
                     exit = true;
                     break;
                 default:
@@ -103,6 +107,33 @@ public class Main {
         for (CityDTO city : cities) {
             System.out.printf("City: %s%n", city.toString());
         }
+    }
+
+    private void handlePerformanceComparison(Scanner scanner) {
+        System.out.println("\nComparing Redis Cache vs Direct Database Access");
+        System.out.print("Enter offset (0 or greater): ");
+        int offset = scanner.nextInt();
+        System.out.print("Enter limit (1 or greater): ");
+        int limit = scanner.nextInt();
+
+        // First run with cache
+        long startTime = System.currentTimeMillis();
+        List<CityDTO> cachedCities = cityService.getPaginatedCities(offset, limit);
+        long cacheTime = System.currentTimeMillis() - startTime;
+
+        // Then run without cache
+        Map.Entry<List<CityDTO>, Long> dbResult = cityService.getPaginatedCitiesNoCache(offset, limit);
+        List<CityDTO> dbCities = dbResult.getKey();
+        long dbTime = dbResult.getValue();
+
+        // Print results
+        System.out.println("\nPerformance Results:");
+        System.out.printf("Redis Cache: %d ms (Retrieved %d cities)%n", cacheTime, cachedCities.size());
+        System.out.printf("Direct DB Access: %d ms (Retrieved %d cities)%n", dbTime, dbCities.size());
+        System.out.printf("Difference: %d ms (Cache is %.2fx %s)%n", 
+            Math.abs(cacheTime - dbTime),
+            dbTime > cacheTime ? (double)dbTime/cacheTime : (double)cacheTime/dbTime,
+            dbTime > cacheTime ? "faster" : "slower");
     }
 
     private void handleCityCategories() {

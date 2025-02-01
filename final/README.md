@@ -4,15 +4,21 @@ A robust Java application for managing city data using Hibernate ORM and Redis, 
 
 ## Features
 
-- Interactive menu-driven interface
-- Paginated city data retrieval with customizable offset and limit
-- Population-based filtering to find cities within specific ranges
+- Interactive menu-driven interface with clear Redis caching indicators
+- Data retrieval options:
+  - Paginated city data with Redis caching for optimal performance
+  - Population-based filtering with direct database access
+  - City categorization by population size
+  - Performance comparison between Redis cache and direct database access
 - Automatic city categorization:
   - Metropolis (1,000,000+ population)
   - Large (500,000 - 999,999 population)
   - Medium (100,000 - 499,999 population)
   - Small (< 100,000 population)
-- Redis caching support for improved performance
+- Redis caching implementation:
+  - Automatic caching of paginated results
+  - Cache expiration after 5 minutes
+  - Performance metrics comparison
 - Clean architecture with separation of concerns
 - Automatic port management and cleanup
 
@@ -141,15 +147,30 @@ The codebase follows SOLID principles and clean architecture practices:
 
 After starting the application, you'll be presented with an interactive menu:
 
-1. View Cities (Paginated)
+1. View Cities (Paginated) - Utilizes Redis caching
    - Enter offset and limit to view a specific range of cities
+   - Results are cached in Redis for 5 minutes
+   - Subsequent identical queries are served from cache
 2. Find Cities by Population Range
    - Enter minimum and maximum population to filter cities
+   - Direct database access without caching
 3. View Cities by Category
    - See cities grouped by population size categories
-4. Exit
+   - Direct database access without caching
+4. Compare Cache vs Database Performance
+   - Compare response times between Redis and direct database access
+   - View detailed performance metrics and speed differences
+5. Exit
 
 The application handles port conflicts automatically and ensures clean shutdown of resources.
+
+### Performance Comparison
+
+The application includes a performance comparison feature that allows you to:
+- Compare response times between Redis cache and direct database access
+- View the number of cities retrieved in each method
+- See the time difference and speed factor between methods
+- Understand when to use caching for optimal performance
 
 2. **Open/Closed Principle**: Components are open for extension but closed for modification
    - Interfaces define contracts
