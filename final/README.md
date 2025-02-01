@@ -1,18 +1,29 @@
 # City Data Management System
 
-A robust Java application for managing city data using Hibernate ORM, following SOLID principles and clean code practices.
+A robust Java application for managing city data using Hibernate ORM and Redis, following SOLID principles and clean code practices. The application provides an interactive console interface for exploring and analyzing city data.
 
 ## Features
 
-- Paginated city data retrieval
-- Population-based filtering
-- City categorization (Small, Medium, Large, Metropolis)
-- Redis caching support
+- Interactive menu-driven interface
+- Paginated city data retrieval with customizable offset and limit
+- Population-based filtering to find cities within specific ranges
+- Automatic city categorization:
+  - Metropolis (1,000,000+ population)
+  - Large (500,000 - 999,999 population)
+  - Medium (100,000 - 499,999 population)
+  - Small (< 100,000 population)
+- Redis caching support for improved performance
 - Clean architecture with separation of concerns
+- Automatic port management and cleanup
 
 ## Architecture
 
 The application follows a layered architecture with clear separation of concerns:
+
+### Domain Layer
+- `City`: Entity representing city data
+- `Country`: Entity representing country data
+- `CountryLanguage`: Entity representing country language data
 
 ### Data Access Layer
 - `ICityRepository`: Interface defining data access operations
@@ -23,16 +34,35 @@ The application follows a layered architecture with clear separation of concerns
 - `CityService`: Implementation of business logic and transaction management
 
 ### Data Transfer Objects
-- `CityDTO`: Handles data transformation and categorization
+- `CityDTO`: Handles data transformation and categorization with population categories
 
 ## Dependencies
 
 - Java 17 or higher
 - Maven 3.6 or higher
-- MySQL 8.0
+- Docker and Docker Compose
+- MySQL 8.0 (runs in Docker)
+- Redis 7.0 (runs in Docker)
 - Hibernate 5.6.14.Final
-- Redis (optional, for caching)
 - SLF4J and Logback for logging
+
+## Docker Setup
+
+The application uses Docker to run its dependencies:
+
+```bash
+# Start Redis container
+docker run -d --name hibernate_redis -p 6379:6379 redis:7.0
+
+# Start MySQL container (if not already running)
+docker run -d --name hibernate_mysql \
+  -e MYSQL_ROOT_PASSWORD=root \
+  -e MYSQL_DATABASE=world \
+  -e MYSQL_USER=hibernate_user \
+  -e MYSQL_PASSWORD=hibernate_password \
+  -p 3306:3306 \
+  mysql:8.0
+```
 
 ## Configuration
 
@@ -58,27 +88,68 @@ The application expects a MySQL database named 'world' with the following schema
   - Population
   - Country (foreign key)
 
+- Country table with fields:
+  - Code
+  - Name
+  - Continent
+  - Region
+  - Population
+  - Capital (foreign key to City)
+
+- CountryLanguage table with fields:
+  - CountryCode (foreign key to Country)
+  - Language
+  - IsOfficial
+  - Percentage
+
 ## Building and Running
 
 1. Clone the repository
-2. Set up environment variables
-3. Build the project:
+2. Start Docker containers (see Docker Setup section)
+3. Set up environment variables
+4. Build the project:
    ```bash
    mvn clean install
    ```
-4. Run the application:
+5. Run the application:
    ```bash
    mvn exec:java -Dexec.mainClass="com.javarush.Main"
    ```
 
 ## Code Organization
 
-The codebase follows SOLID principles:
+The codebase follows SOLID principles and clean architecture practices:
 
 1. **Single Responsibility Principle**: Each class has a single, well-defined purpose
-   - `CityDAO`: Handles data access
-   - `CityService`: Manages business logic
-   - `CityDTO`: Handles data transformation
+   - `CityDAO`: Handles data access operations
+   - `CityService`: Manages business logic and transactions
+   - `CityDTO`: Handles data transformation and presentation
+
+2. **Interface Segregation**: Clean interfaces for different responsibilities
+   - `ICityRepository`: Data access contract
+   - `ICityService`: Business operations contract
+
+3. **Dependency Inversion**: High-level modules depend on abstractions
+   - Services depend on repository interfaces
+   - Main class depends on service interfaces
+
+4. **Open/Closed Principle**: Extensible design
+   - New city categories can be added without modifying existing code
+   - New data operations can be added by extending interfaces
+
+## Usage
+
+After starting the application, you'll be presented with an interactive menu:
+
+1. View Cities (Paginated)
+   - Enter offset and limit to view a specific range of cities
+2. Find Cities by Population Range
+   - Enter minimum and maximum population to filter cities
+3. View Cities by Category
+   - See cities grouped by population size categories
+4. Exit
+
+The application handles port conflicts automatically and ensures clean shutdown of resources.
 
 2. **Open/Closed Principle**: Components are open for extension but closed for modification
    - Interfaces define contracts
@@ -126,4 +197,4 @@ Cities are categorized based on population:
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the LICENSE file for details
