@@ -1,82 +1,82 @@
 package com.javarush;
 
-import com.codegym.dao.CityDAO;
-import com.codegym.domain.City;
-import com.codegym.domain.Country;
-import com.codegym.domain.CountryLanguage;
+import com.codegym.config.AppConfig;
 import com.codegym.dto.CityDTO;
-import com.codegym.service.CityService;
 import com.codegym.service.ICityService;
-import io.lettuce.core.RedisClient;
-import org.hibernate.SessionFactory;
-import org.hibernate.cfg.Configuration;
-import org.hibernate.cfg.Environment;
+import com.codegym.util.Constants;
+import com.javarush.menu.MenuOption;
 
 import java.io.IOException;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Scanner;
-import java.util.stream.Collectors;
 
 /**
  * Main application class demonstrating city data operations and transformations.
  */
 public class Main {
-    private static final int BATCH_SIZE = 500;
+    private static final int BATCH_SIZE = Constants.DEFAULT_BATCH_SIZE;
 
-    private final SessionFactory sessionFactory;
-    private final RedisClient redisClient;
+    private final AppConfig appConfig;
     private final ICityService cityService;
 
     public Main() {
         checkAndHandlePortsInUse();
-        this.sessionFactory = prepareRelationalDb();
-        this.redisClient = prepareRedisClient();
-        this.cityService = new CityService(new CityDAO(sessionFactory), sessionFactory, redisClient);
+        this.appConfig = new AppConfig();
+        this.appConfig.initialize();
+        this.cityService = appConfig.getCityService();
     }
 
     private void showMenu() {
         Scanner scanner = new Scanner(System.in);
-        boolean exit = false;
-
-        while (!exit) {
+        while (true) {
             System.out.println("\nCity Data Operations Menu:");
-            System.out.println("1. View Cities (Pagination) - Utilizes Redis caching for improved performance");
-            System.out.println("2. Find Cities by Population Range");
-            System.out.println("3. View Cities by Category");
-            System.out.println("4. Compare Cache vs Database Performance");
-            System.out.println("5. Exit");
-            System.out.print("Enter your choice (1-5): ");
-
-            int choice = scanner.nextInt();
-            scanner.nextLine(); // consume newline
-
-            switch (choice) {
-                case 1:
-                    handlePagination(scanner);
-                    break;
-                case 2:
-                    handlePopulationRange(scanner);
-                    break;
-                case 3:
-                    handleCityCategories();
-                    break;
-                case 4:
-                    handlePerformanceComparison(scanner);
-                    break;
-                case 5:
-                    exit = true;
-                    break;
-                default:
-                    System.out.println("Invalid choice. Please try again.");
+            // Display menu options
+            for (MenuOption option : MenuOption.values()) {
+                System.out.printf("%d. %s%n", option.getValue(), option.getDisplayText());
             }
-        }
+            System.out.print("Enter your choice: ");
 
-        // Cleanup
-        shutdown();
+            try {
+                int choice = scanner.nextInt();
+                scanner.nextLine(); // consume newline
+                MenuOption selectedOption = MenuOption.fromValue(choice);
+                
+                if (selectedOption == null) {
+                    System.out.println("Invalid choice. Please try again.");
+                    continue;
+                }
+                
+                switch (selectedOption) {
+                    case PAGINATED_CITIES:
+                        handlePagination(scanner);
+                        break;
+                    case POPULATION_RANGE:
+                        handlePopulationRange(scanner);
+                        break;
+                    case CITY_CATEGORIES:
+                        handleCityCategories();
+                        break;
+                    case PERFORMANCE_COMPARISON:
+                        handlePerformanceComparison(scanner);
+                        break;
+                    case EXIT:
+                        System.out.println("Exiting...");
+                        shutdown();
+                        return;
+                }
+            } catch (InputMismatchException e) {
+                System.out.println("Invalid input. Please enter a number.");
+                scanner.nextLine(); // Clear the invalid input
+            } catch (Exception e) {
+                System.out.println("An error occurred: " + e.getMessage());
+                e.printStackTrace();
+            }
+            System.out.println();
+        }
     }
 
     private void handlePagination(Scanner scanner) {
@@ -137,21 +137,21 @@ public class Main {
     }
 
     private void handleCityCategories() {
-        Map<String, List<CityDTO>> categorizedCities = cityService.getCitiesByCategory(1000); // Get up to 1000 cities
+        Map<String, List<CityDTO>> categorizedCities = cityService.getCitiesByCategory(Constants.DEFAULT_CATEGORY_LIMIT);
 
         System.out.println("\nCities by category:");
         for (Map.Entry<String, List<CityDTO>> entry : categorizedCities.entrySet()) {
             System.out.printf("%s Cities (%d)%n", entry.getKey(), entry.getValue().size());
-            // Show first 5 cities of each category as examples
-            entry.getValue().stream().limit(5).forEach(city ->
+            // Show first few cities of each category as examples
+            entry.getValue().stream().limit(Constants.EXAMPLE_DISPLAY_LIMIT).forEach(city ->
                 System.out.printf("City: %s%n", city.toString()));
         }
     }
 
     private void checkAndHandlePortsInUse() {
         List<Integer> portsToCheck = new ArrayList<>();
-        portsToCheck.add(3306); // MySQL port
-        portsToCheck.add(6379); // Redis port
+        portsToCheck.add(Constants.MYSQL_PORT);
+        portsToCheck.add(Constants.REDIS_PORT);
 
         for (int port : portsToCheck) {
             if (isPortInUse(port)) {
@@ -206,43 +206,11 @@ public class Main {
         main.showMenu();
     }
 
-    private SessionFactory prepareRelationalDb() {
-        Configuration configuration = new Configuration();
-        Properties properties = createDatabaseProperties();
-        
-        configuration.addProperties(properties);
-        configuration.addAnnotatedClass(City.class);
-        configuration.addAnnotatedClass(Country.class);
-        configuration.addAnnotatedClass(CountryLanguage.class);
-        
-        return configuration.buildSessionFactory();
-    }
 
-    private Properties createDatabaseProperties() {
-        Properties properties = new Properties();
-        properties.put(Environment.DRIVER, "com.mysql.cj.jdbc.Driver");
-        properties.put(Environment.URL, System.getenv().getOrDefault("MYSQL_URL", "jdbc:mysql://localhost:3306/world"));
-        properties.put(Environment.USER, System.getenv().getOrDefault("MYSQL_USER", "hibernate_user"));
-        properties.put(Environment.PASS, System.getenv().getOrDefault("MYSQL_PASSWORD", "hibernate_password"));
-        properties.put(Environment.DIALECT, "org.hibernate.dialect.MySQL8Dialect");
-        properties.put(Environment.HBM2DDL_AUTO, "validate");
-        properties.put(Environment.SHOW_SQL, "false");
-        properties.put(Environment.CURRENT_SESSION_CONTEXT_CLASS, "thread");
-        properties.put(Environment.STATEMENT_BATCH_SIZE, BATCH_SIZE);
-        return properties;
-    }
-
-    private RedisClient prepareRedisClient() {
-        String redisUrl = System.getenv().getOrDefault("REDIS_URL", "redis://localhost:6379/0");
-        return RedisClient.create(redisUrl);
-    }
 
     private void shutdown() {
-        if (sessionFactory != null) {
-            sessionFactory.close();
-        }
-        if (redisClient != null) {
-            redisClient.shutdown();
+        if (appConfig != null) {
+            appConfig.shutdown();
         }
     }
 }
